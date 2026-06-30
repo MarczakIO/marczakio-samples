@@ -1,0 +1,402 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_la_sandbox_check_teams_name": {
+            "defaultValue": "la-sandbox-check-teams",
+            "type": "String"
+        },
+        "roleAssignments___variables__SandboxUserRoleId____externalid": {
+            "defaultValue": "/subscriptions/@{variables('SandboxSubscriptionId')}/resourceGroups/@{body('Parse_JSON_-_Temp_Variables')?['groupName']}/providers/Microsoft.Authorization/roleAssignments/@{variables('SandboxUserRoleId')}",
+            "type": "String"
+        },
+        "userAssignedIdentities_la_sandbox_uami_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/la-sandbox-uami",
+            "type": "String"
+        },
+        "connections_teams_2_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.Web/connections/teams-2",
+            "type": "String"
+        },
+        "connections_arm_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.Web/connections/arm",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_la_sandbox_check_teams_name')]",
+            "location": "swedencentral",
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/la-sandbox-uami": {}
+                }
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "metadata": {
+                        "notes": {}
+                    },
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_new_chat_message_is_added": {
+                            "splitOn": "@triggerBody()?['value']",
+                            "type": "ApiConnectionWebhook",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                    }
+                                },
+                                "body": {
+                                    "notificationUrl": "@listCallbackUrl()"
+                                },
+                                "path": "/beta/subscriptions/chatmessagetrigger"
+                            },
+                            "conditions": []
+                        }
+                    },
+                    "actions": {
+                        "Condition": {
+                            "actions": {
+                                "Post_adaptive_card_and_wait_for_a_response": {
+                                    "limit": {
+                                        "timeout": "P1D"
+                                    },
+                                    "type": "ApiConnectionWebhook",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                            }
+                                        },
+                                        "body": {
+                                            "notificationUrl": "@{listCallbackUrl()}",
+                                            "body": {
+                                                "messageBody": "{\n    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n    \"type\": \"AdaptiveCard\",\n    \"version\": \"1.0\",\n    \"body\": [\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"How may I help?\",\n            \"id\": \"acPollQuestion\"\n        },\n        {\n            \"type\": \"Input.ChoiceSet\",\n            \"placeholder\": \"Select from these choices\",\n            \"choices\": [\n                {\n                    \"title\": \"Azure Learning Sandbox\",\n                    \"value\": \"sandbox\"\n                }\n            ],\n            \"id\": \"acPollChoices\",\n            \"style\": \"expanded\"\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"Action.Submit\",\n            \"title\": \"Submit\",\n            \"id\": \"btnSubmit\"\n        }\n    ]\n}",
+                                                "updateMessage": "Thanks for the input. Give me minute.",
+                                                "recipient": {
+                                                    "recipient": "@triggerBody()?['conversationId']"
+                                                }
+                                            }
+                                        },
+                                        "path": "/v1.0/teams/conversation/gatherinput/poster/@{encodeURIComponent('Flow bot')}/location/@{encodeURIComponent('Group chat')}/$subscriptions"
+                                    }
+                                },
+                                "Switch": {
+                                    "runAfter": {
+                                        "Post_adaptive_card_and_wait_for_a_response": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "cases": {
+                                        "Case": {
+                                            "case": "sandbox",
+                                            "actions": {
+                                                "Delay_-_12h": {
+                                                    "runAfter": {
+                                                        "Post_card_in_a_chat_or_channel_-_created": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "Wait",
+                                                    "inputs": {
+                                                        "interval": {
+                                                            "count": 12,
+                                                            "unit": "Hour"
+                                                        }
+                                                    }
+                                                },
+                                                "HTTP_-_Add_Role_Assignment": {
+                                                    "runAfter": {
+                                                        "Create_or_update_a_resource_group": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "Http",
+                                                    "inputs": {
+                                                        "uri": "https://management.azure.com/subscriptions/@{variables('SandboxSubscriptionId')}/resourceGroups/@{body('Parse_JSON_-_Temp_Variables')?['groupName']}/providers/Microsoft.Authorization/roleAssignments/@{guid()}?api-version=2022-04-01",
+                                                        "method": "PUT",
+                                                        "body": {
+                                                            "properties": {
+                                                                "principalId": "@{body('Parse_JSON_-_Temp_Variables')?['userId']}",
+                                                                "roleDefinitionId": "[parameters('roleAssignments___variables__SandboxUserRoleId____externalid')]"
+                                                            }
+                                                        },
+                                                        "authentication": {
+                                                            "type": "ManagedServiceIdentity",
+                                                            "identity": "[parameters('userAssignedIdentities_la_sandbox_uami_externalid')]",
+                                                            "audience": "https://management.azure.com/"
+                                                        }
+                                                    }
+                                                },
+                                                "Parse_JSON_-_Temp_Variables": {
+                                                    "runAfter": {
+                                                        "Post_message_in_a_chat_or_channel": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ParseJson",
+                                                    "inputs": {
+                                                        "content": {
+                                                            "groupName": "cf-int-az-sbx-@{substring(body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName'],0,indexOf(body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName'],'@'))}-@{formatDateTime(utcNow(),'yyyy-MM-dd')}-@{rand(10000,99999)}",
+                                                            "userId": "@{body('Get_message_details')?['from']?['user']?['id']}"
+                                                        },
+                                                        "schema": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "extUserName": {
+                                                                    "type": "string"
+                                                                },
+                                                                "groupName": {
+                                                                    "type": "string"
+                                                                },
+                                                                "userId": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "Post_card_in_a_chat_or_channel_-_created": {
+                                                    "runAfter": {
+                                                        "HTTP_-_Add_Role_Assignment": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "post",
+                                                        "body": {
+                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                            "messageBody": "{\n    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n    \"type\": \"AdaptiveCard\",\n    \"version\": \"1.0\",\n    \"body\": [\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"I'm done! 🥳🙌\"\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"Your resource group **@{body('Parse_JSON_-_Temp_Variables')?['groupName']}** is completed.\",\n            \"wrap\": true\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"But important stuff first\\n* ⚠️ Do NOT use this for project purposes, **only learning**.\\n* ⚠️ **No client data** should be placed in sandbox environment at any time.\\n* ⏳ Group will automatically be **deleted after 12 hours**!\",\n            \"wrap\": true\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"Click below to open your group in Azure Portal. 👇\",\n            \"wrap\": true\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"Action.OpenUrl\",\n            \"title\": \"Open Resource Group\",\n            \"url\": \"https://portal.azure.com/#@{concat('@', variables('SandboxTenantName'))}/resource/subscriptions/@{variables('SandboxSubscriptionId')}/resourceGroups/@{body('Parse_JSON_-_Temp_Variables')?['groupName']}/overview\",\n            \"id\": \"open-rg\"\n        }\n    ]\n}"
+                                                        },
+                                                        "path": "/v1.0/teams/conversation/adaptivecard/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                    }
+                                                },
+                                                "Post_message_in_a_chat_or_channel": {
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "post",
+                                                        "body": {
+                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                            "messageBody": "<p><strong>Creating </strong>new <strong>Azure Resource Group</strong>... Leave to me boss 🫡</p>"
+                                                        },
+                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                    }
+                                                },
+                                                "Post_message_in_a_chat_or_channel_-_failed": {
+                                                    "runAfter": {
+                                                        "Delete_a_resource_group": [
+                                                            "TimedOut",
+                                                            "Skipped",
+                                                            "Failed"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "post",
+                                                        "body": {
+                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                            "messageBody": "<p>Hey, <br>\n<br>\nUnfortunately I was unable to delete your resource group. Please delete it manually via Azure Portal.<br>\n<br>\nResource Group Name: @{body('Parse_JSON_-_Temp_Variables')?['groupName']}<br>\n<br>\nIn case of any questions please do not hesitate to contact us.&nbsp;</p>"
+                                                        },
+                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                    }
+                                                },
+                                                "Create_or_update_a_resource_group": {
+                                                    "runAfter": {
+                                                        "Parse_JSON_-_Temp_Variables": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['arm']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "put",
+                                                        "body": {
+                                                            "location": "swedencentral",
+                                                            "tags": {
+                                                                "CreatedDate": "@{utcNow()}",
+                                                                "Creator": "@{body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName']}",
+                                                                "DeleteByDate": "@{addHours(utcNow(),12)}",
+                                                                "Project": "sandbox-@{toLower(split(body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName'], '@')[0])}",
+                                                                "SandboxName": "@{body('Parse_JSON_-_Temp_Variables')?['groupName']}"
+                                                            }
+                                                        },
+                                                        "path": "/subscriptions/@{encodeURIComponent('f73706f8-c55b-42b7-9d31-6fc8e0d24146')}/resourcegroups/@{encodeURIComponent(body('Parse_JSON_-_Temp_Variables')?['groupName'])}",
+                                                        "queries": {
+                                                            "x-ms-api-version": "2016-06-01"
+                                                        }
+                                                    }
+                                                },
+                                                "Delete_a_resource_group": {
+                                                    "runAfter": {
+                                                        "Delay_-_12h": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['arm']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "delete",
+                                                        "path": "/subscriptions/@{encodeURIComponent('f73706f8-c55b-42b7-9d31-6fc8e0d24146')}/resourcegroups/@{encodeURIComponent(body('Parse_JSON_-_Temp_Variables')?['groupName'])}",
+                                                        "queries": {
+                                                            "x-ms-api-version": "2016-06-01"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "default": {
+                                        "actions": {}
+                                    },
+                                    "expression": "@body('Post_adaptive_card_and_wait_for_a_response')?['data']?['acPollChoices']",
+                                    "type": "Switch"
+                                }
+                            },
+                            "runAfter": {
+                                "Initialize_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "else": {
+                                "actions": {
+                                    "Terminate": {
+                                        "type": "Terminate",
+                                        "inputs": {
+                                            "runStatus": "Cancelled"
+                                        }
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "not": {
+                                            "equals": [
+                                                "@body('Get_message_details')?['from']?['user']",
+                                                null
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "not": {
+                                            "startsWith": [
+                                                "@body('Get_message_details')?['from']?['user']?['displayName']",
+                                                "Azure Buddy"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "Get_message_details": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "body": {
+                                    "recipient": "@triggerBody()?['conversationId']"
+                                },
+                                "path": "/beta/teams/messages/@{encodeURIComponent(triggerBody()?['messageId'])}/messageType/@{encodeURIComponent('groupchat')}"
+                            }
+                        },
+                        "Initialize_variable": {
+                            "runAfter": {
+                                "Get_message_details": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "SandboxSubscriptionId",
+                                        "type": "string",
+                                        "value": "f73706f8-c55b-42b7-9d31-6fc8e0d24146"
+                                    },
+                                    {
+                                        "name": "SandboxUserRoleId",
+                                        "type": "string",
+                                        "value": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+                                    },
+                                    {
+                                        "name": "SandboxTenantName",
+                                        "type": "string",
+                                        "value": "marczak.io"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "teams-2": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/teams",
+                                "connectionId": "[parameters('connections_teams_2_externalid')]",
+                                "connectionName": "teams-2",
+                                "connectionProperties": {}
+                            },
+                            "arm": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/arm",
+                                "connectionId": "[parameters('connections_arm_externalid')]",
+                                "connectionName": "arm",
+                                "connectionProperties": {
+                                    "authentication": {
+                                        "type": "ManagedServiceIdentity",
+                                        "identity": "[parameters('userAssignedIdentities_la_sandbox_uami_externalid')]"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
