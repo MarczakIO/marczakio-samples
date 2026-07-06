@@ -1,0 +1,663 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_la_sandbox_fabric_teams_name": {
+            "defaultValue": "la-sandbox-fabric-teams",
+            "type": "String"
+        },
+        "capacities______encodeURIComponent_variables__CapacityName_____externalid": {
+            "defaultValue": "/subscriptions/@{encodeURIComponent(variables('SubscriptionId'))}/resourceGroups/@{encodeURIComponent(variables('ResourceGroupName'))}/providers/@{encodeURIComponent('Microsoft.Fabric/capacities')}/@{encodeURIComponent(variables('CapacityName'))}",
+            "type": "String"
+        },
+        "connections_teams_2_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.Web/connections/teams-2",
+            "type": "String"
+        },
+        "connections_arm_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.Web/connections/arm",
+            "type": "String"
+        },
+        "userAssignedIdentities_la_sandbox_uami_externalid": {
+            "defaultValue": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/la-sandbox-uami",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_la_sandbox_fabric_teams_name')]",
+            "location": "swedencentral",
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/resourceGroups/la-sandbox-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/la-sandbox-uami": {}
+                }
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "metadata": {
+                        "notes": {}
+                    },
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_new_chat_message_is_added": {
+                            "splitOn": "@triggerBody()?['value']",
+                            "type": "ApiConnectionWebhook",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                    }
+                                },
+                                "body": {
+                                    "notificationUrl": "@listCallbackUrl()"
+                                },
+                                "path": "/beta/subscriptions/chatmessagetrigger"
+                            },
+                            "conditions": []
+                        }
+                    },
+                    "actions": {
+                        "Condition": {
+                            "actions": {
+                                "Post_adaptive_card_and_wait_for_a_response": {
+                                    "limit": {
+                                        "timeout": "P1D"
+                                    },
+                                    "type": "ApiConnectionWebhook",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                            }
+                                        },
+                                        "body": {
+                                            "notificationUrl": "@{listCallbackUrl()}",
+                                            "body": {
+                                                "messageBody": "{\n    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n    \"type\": \"AdaptiveCard\",\n    \"version\": \"1.0\",\n    \"body\": [\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"How may I help?\",\n            \"id\": \"acPollQuestion\"\n        },\n        {\n            \"type\": \"Input.ChoiceSet\",\n            \"placeholder\": \"Select from these choices\",\n            \"choices\": [\n                {\n                    \"title\": \"Fabric Learning Sandbox Capacity\",\n                    \"value\": \"fabric\"\n                }\n            ],\n            \"id\": \"acPollChoices\",\n            \"style\": \"expanded\"\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"Action.Submit\",\n            \"title\": \"Submit\",\n            \"id\": \"btnSubmit\"\n        }\n    ]\n}",
+                                                "updateMessage": "Thanks for the input. Give me minute.",
+                                                "recipient": {
+                                                    "recipient": "@triggerBody()?['conversationId']"
+                                                }
+                                            }
+                                        },
+                                        "path": "/v1.0/teams/conversation/gatherinput/poster/@{encodeURIComponent('Flow bot')}/location/@{encodeURIComponent('Group chat')}/$subscriptions"
+                                    }
+                                },
+                                "Switch": {
+                                    "runAfter": {
+                                        "Post_adaptive_card_and_wait_for_a_response": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "cases": {
+                                        "Case": {
+                                            "case": "fabric",
+                                            "actions": {
+                                                "Create_Fabric": {
+                                                    "actions": {
+                                                        "Post_message_in_a_chat_or_channel": {
+                                                            "type": "ApiConnection",
+                                                            "inputs": {
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                                                    }
+                                                                },
+                                                                "method": "post",
+                                                                "body": {
+                                                                    "recipient": "@triggerBody()?['conversationId']",
+                                                                    "messageBody": "<p class=\"editor-paragraph\"><b><strong class=\"editor-text-bold\">Creating </strong></b>new <b><strong class=\"editor-text-bold\">Microsoft Fabric capacity</strong></b>.</p>"
+                                                                },
+                                                                "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                            }
+                                                        },
+                                                        "Parse_JSON_-_Temp_Variables": {
+                                                            "runAfter": {
+                                                                "Post_message_in_a_chat_or_channel": [
+                                                                    "Succeeded"
+                                                                ]
+                                                            },
+                                                            "type": "ParseJson",
+                                                            "inputs": {
+                                                                "content": {
+                                                                    "capacityNamePrefix": "azfabricsbx@{if(variables('SharedCapacity'),'shared',substring(body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName'],0,indexOf(body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName'],'@')))}",
+                                                                    "userId": "@{body('Get_message_details')?['from']?['user']?['id']}",
+                                                                    "userPrincipalName": "@{body('Post_adaptive_card_and_wait_for_a_response')?['responder']?['userPrincipalName']}"
+                                                                },
+                                                                "schema": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "capacityNamePrefix": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "userId": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "userPrincipalName": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "List_resources_by_resource_group": {
+                                                            "runAfter": {
+                                                                "Parse_JSON_-_Temp_Variables": [
+                                                                    "Succeeded"
+                                                                ]
+                                                            },
+                                                            "type": "ApiConnection",
+                                                            "inputs": {
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                    }
+                                                                },
+                                                                "method": "get",
+                                                                "path": "/subscriptions/@{encodeURIComponent(variables('SubscriptionId'))}/resourceGroups/@{encodeURIComponent(variables('ResourceGroupName'))}/resources",
+                                                                "queries": {
+                                                                    "x-ms-api-version": "2016-06-01",
+                                                                    "$filter": "ResourceType eq 'Microsoft.Fabric/capacities' and substringof('@{body('Parse_JSON_-_Temp_Variables')?['capacityNamePrefix']}',Name)"
+                                                                }
+                                                            }
+                                                        },
+                                                        "Condition_-_fabric_exists": {
+                                                            "actions": {
+                                                                "Update_a_resource": {
+                                                                    "runAfter": {
+                                                                        "Read_a_resource": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "put",
+                                                                        "body": {
+                                                                            "sku": {
+                                                                                "name": "F2",
+                                                                                "tier": "Fabric"
+                                                                            },
+                                                                            "location": "swedencentral",
+                                                                            "tags": {
+                                                                                "DeleteDate": "@{addHours(utcNow(),variables('DeleteAfter'))}",
+                                                                                "Admins": "@{join(union(createArray(body('Parse_JSON_-_Temp_Variables')?['userPrincipalName']),body('Read_a_resource')?['properties']?['administration']?['members']),',')}"
+                                                                            },
+                                                                            "properties": {
+                                                                                "administration": {
+                                                                                    "members": "@union(createArray(body('Parse_JSON_-_Temp_Variables')?['userPrincipalName']),body('Read_a_resource')?['properties']?['administration']?['members'])"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "path": "[parameters('capacities______encodeURIComponent_variables__CapacityName_____externalid')]",
+                                                                        "queries": {
+                                                                            "x-ms-api-version": "2023-11-01"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Post_message_-_found_resource": {
+                                                                    "runAfter": {
+                                                                        "Set_variable_-_existing_name": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['teams']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "post",
+                                                                        "body": {
+                                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                                            "messageBody": "<p class=\"editor-paragraph\">Capacity @{body('List_resources_by_resource_group')?['value'][0]?['name']} exists, adding you as capacity admin and extending it by @{variables('DeleteAfter')} hours!</p>"
+                                                                        },
+                                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                                    }
+                                                                },
+                                                                "Read_a_resource": {
+                                                                    "runAfter": {
+                                                                        "Post_message_-_found_resource": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "get",
+                                                                        "path": "[parameters('capacities______encodeURIComponent_variables__CapacityName_____externalid')]",
+                                                                        "queries": {
+                                                                            "x-ms-api-version": "2023-11-01"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Post_message_-_extended": {
+                                                                    "runAfter": {
+                                                                        "Update_a_resource": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['teams-1']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "post",
+                                                                        "body": {
+                                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                                            "messageBody": "<p class=\"editor-paragraph\">Capacity @{body('List_resources_by_resource_group')?['value'][0]?['name']} extended until @{formatDateTime(addHours(utcNow(),variables('DeleteAfter')), 'yyyy-MM-dd hh:mm:ss UTC')}</p>"
+                                                                        },
+                                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                                    }
+                                                                },
+                                                                "Set_variable_-_existing_name": {
+                                                                    "type": "SetVariable",
+                                                                    "inputs": {
+                                                                        "name": "CapacityName",
+                                                                        "value": "@body('List_resources_by_resource_group')?['value'][0]?['name']"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "runAfter": {
+                                                                "List_resources_by_resource_group": [
+                                                                    "Succeeded"
+                                                                ]
+                                                            },
+                                                            "else": {
+                                                                "actions": {
+                                                                    "Create_a_resource": {
+                                                                        "runAfter": {
+                                                                            "Set_variable_-_new_name": [
+                                                                                "Succeeded"
+                                                                            ]
+                                                                        },
+                                                                        "type": "ApiConnection",
+                                                                        "inputs": {
+                                                                            "host": {
+                                                                                "connection": {
+                                                                                    "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                                }
+                                                                            },
+                                                                            "method": "put",
+                                                                            "body": {
+                                                                                "sku": {
+                                                                                    "name": "F2",
+                                                                                    "tier": "Fabric"
+                                                                                },
+                                                                                "location": "@variables('CapacityRegion')",
+                                                                                "tags": {
+                                                                                    "DeleteDate": "@{addHours(utcNow(),variables('DeleteAfter'))}",
+                                                                                    "Admins": "@{body('Parse_JSON_-_Temp_Variables')?['userPrincipalName']}"
+                                                                                },
+                                                                                "properties": {
+                                                                                    "administration": {
+                                                                                        "members": [
+                                                                                            "@body('Parse_JSON_-_Temp_Variables')?['userPrincipalName']"
+                                                                                        ]
+                                                                                    }
+                                                                                }
+                                                                            },
+                                                                            "path": "[parameters('capacities______encodeURIComponent_variables__CapacityName_____externalid')]",
+                                                                            "queries": {
+                                                                                "x-ms-api-version": "2023-11-01"
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "Post_message_-_creating_resource": {
+                                                                        "runAfter": {
+                                                                            "Create_a_resource": [
+                                                                                "Succeeded"
+                                                                            ]
+                                                                        },
+                                                                        "type": "ApiConnection",
+                                                                        "inputs": {
+                                                                            "host": {
+                                                                                "connection": {
+                                                                                    "name": "@parameters('$connections')['teams-1']['connectionId']"
+                                                                                }
+                                                                            },
+                                                                            "method": "post",
+                                                                            "body": {
+                                                                                "recipient": "@triggerBody()?['conversationId']",
+                                                                                "messageBody": "<p class=\"editor-paragraph\">Capacity @{body('Create_a_resource')?['name']} created until @{formatDateTime(body('Create_a_resource')?['tags']?['DeleteDate'], 'yyyy-MM-dd hh:mm:ss UTC')}. You are now an admin</p>"
+                                                                            },
+                                                                            "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                                        }
+                                                                    },
+                                                                    "Set_variable_-_new_name": {
+                                                                        "type": "SetVariable",
+                                                                        "inputs": {
+                                                                            "name": "CapacityName",
+                                                                            "value": "@{body('Parse_JSON_-_Temp_Variables')?['capacityNamePrefix']}@{rand(100000,999999)}"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            },
+                                                            "expression": {
+                                                                "and": [
+                                                                    {
+                                                                        "greater": [
+                                                                            "@length(body('List_resources_by_resource_group')?['value'])",
+                                                                            0
+                                                                        ]
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "type": "If"
+                                                        }
+                                                    },
+                                                    "type": "Scope"
+                                                },
+                                                "Delete_Fabric": {
+                                                    "actions": {
+                                                        "Read_a_resource_-_delayed": {
+                                                            "type": "ApiConnection",
+                                                            "inputs": {
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                    }
+                                                                },
+                                                                "method": "get",
+                                                                "path": "[parameters('capacities______encodeURIComponent_variables__CapacityName_____externalid')]",
+                                                                "queries": {
+                                                                    "x-ms-api-version": "2023-11-01"
+                                                                }
+                                                            }
+                                                        },
+                                                        "Condition_-_can_be_deleted": {
+                                                            "actions": {
+                                                                "Delete_a_resource": {
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['arm']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "delete",
+                                                                        "path": "[parameters('capacities______encodeURIComponent_variables__CapacityName_____externalid')]",
+                                                                        "queries": {
+                                                                            "x-ms-api-version": "2023-11-01"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Post_message_-_delete_resoruce": {
+                                                                    "runAfter": {
+                                                                        "Delete_a_resource": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "ApiConnection",
+                                                                    "inputs": {
+                                                                        "host": {
+                                                                            "connection": {
+                                                                                "name": "@parameters('$connections')['teams-1']['connectionId']"
+                                                                            }
+                                                                        },
+                                                                        "method": "post",
+                                                                        "body": {
+                                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                                            "messageBody": "<p class=\"editor-paragraph\">Capacity @{variables('CapacityName')} <b><strong class=\"editor-text-bold\">deleted</strong></b>. Delete Date was@{formatDateTime(body('Read_a_resource_-_delayed')?['tags']?['DeleteDate'], 'yyyy-MM-dd hh:mm:ss UTC')}, current time @{formatDateTime(utcNow(), 'yyyy-MM-dd hh:mm:ss UTC')}.</p>"
+                                                                        },
+                                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "runAfter": {
+                                                                "Read_a_resource_-_delayed": [
+                                                                    "Succeeded"
+                                                                ]
+                                                            },
+                                                            "else": {
+                                                                "actions": {
+                                                                    "Post_message_-_omit_delete_resource": {
+                                                                        "type": "ApiConnection",
+                                                                        "inputs": {
+                                                                            "host": {
+                                                                                "connection": {
+                                                                                    "name": "@parameters('$connections')['teams-1']['connectionId']"
+                                                                                }
+                                                                            },
+                                                                            "method": "post",
+                                                                            "body": {
+                                                                                "recipient": "@triggerBody()?['conversationId']",
+                                                                                "messageBody": "<p class=\"editor-paragraph\">Capacity @{variables('CapacityName')} deletion omitted. It was extended until @{formatDateTime(body('Read_a_resource_-_delayed')?['tags']?['DeleteDate'], 'yyyy-MM-dd hh:mm:ss UTC')}, current time @{formatDateTime(utcNow(), 'yyyy-MM-dd hh:mm:ss UTC')}.</p>"
+                                                                            },
+                                                                            "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            },
+                                                            "expression": {
+                                                                "and": [
+                                                                    {
+                                                                        "lessOrEquals": [
+                                                                            "@body('Read_a_resource_-_delayed')?['tags']?['DeleteDate']",
+                                                                            "@utcNow()"
+                                                                        ]
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "type": "If"
+                                                        }
+                                                    },
+                                                    "runAfter": {
+                                                        "Delay": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "Scope"
+                                                },
+                                                "Delay": {
+                                                    "runAfter": {
+                                                        "Create_Fabric": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "Wait",
+                                                    "inputs": {
+                                                        "interval": {
+                                                            "count": "@variables('DeleteAfter')",
+                                                            "unit": "Hour"
+                                                        }
+                                                    }
+                                                },
+                                                "Post_message_-_deletion_failed": {
+                                                    "runAfter": {
+                                                        "Delete_Fabric": [
+                                                            "TimedOut",
+                                                            "Skipped",
+                                                            "Failed"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['teams-3']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "post",
+                                                        "body": {
+                                                            "recipient": "@triggerBody()?['conversationId']",
+                                                            "messageBody": "<p class=\"editor-paragraph\">Capacity @{variables('CapacityName')} deletion failed. Please remove capacity manually, or contact your administrator.</p>"
+                                                        },
+                                                        "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Group chat')}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "default": {
+                                        "actions": {}
+                                    },
+                                    "expression": "@body('Post_adaptive_card_and_wait_for_a_response')?['data']?['acPollChoices']",
+                                    "type": "Switch"
+                                }
+                            },
+                            "runAfter": {
+                                "Initialize_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "else": {
+                                "actions": {
+                                    "Terminate": {
+                                        "type": "Terminate",
+                                        "inputs": {
+                                            "runStatus": "Cancelled"
+                                        }
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "not": {
+                                            "equals": [
+                                                "@body('Get_message_details')?['from']?['user']",
+                                                null
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "not": {
+                                            "startsWith": [
+                                                "@body('Get_message_details')?['from']?['user']?['displayName']",
+                                                "Azure Buddy"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "Get_message_details": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['teams-2']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "body": {
+                                    "recipient": "@triggerBody()?['conversationId']"
+                                },
+                                "path": "/beta/teams/messages/@{encodeURIComponent(triggerBody()?['messageId'])}/messageType/@{encodeURIComponent('groupchat')}"
+                            }
+                        },
+                        "Initialize_variable": {
+                            "runAfter": {
+                                "Get_message_details": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "SharedCapacity",
+                                        "type": "boolean",
+                                        "value": true
+                                    },
+                                    {
+                                        "name": "DeleteAfter",
+                                        "type": "integer",
+                                        "value": 1
+                                    },
+                                    {
+                                        "name": "CapacityName",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "name": "SubscriptionId",
+                                        "type": "string",
+                                        "value": "f73706f8-c55b-42b7-9d31-6fc8e0d24146"
+                                    },
+                                    {
+                                        "name": "ResourceGroupName",
+                                        "type": "string",
+                                        "value": "la-sandbox-fabric-capacity-demo"
+                                    },
+                                    {
+                                        "name": "CapacityRegion",
+                                        "type": "string",
+                                        "value": "swedencentral"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "teams-2": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/teams",
+                                "connectionId": "[parameters('connections_teams_2_externalid')]",
+                                "connectionName": "teams-2",
+                                "connectionProperties": {}
+                            },
+                            "arm": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/arm",
+                                "connectionId": "[parameters('connections_arm_externalid')]",
+                                "connectionName": "arm",
+                                "connectionProperties": {
+                                    "authentication": {
+                                        "type": "ManagedServiceIdentity",
+                                        "identity": "[parameters('userAssignedIdentities_la_sandbox_uami_externalid')]"
+                                    }
+                                }
+                            },
+                            "teams": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/teams",
+                                "connectionId": "[parameters('connections_teams_2_externalid')]",
+                                "connectionName": "teams-2",
+                                "connectionProperties": {}
+                            },
+                            "teams-1": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/teams",
+                                "connectionId": "[parameters('connections_teams_2_externalid')]",
+                                "connectionName": "teams-2",
+                                "connectionProperties": {}
+                            },
+                            "teams-3": {
+                                "id": "/subscriptions/f73706f8-c55b-42b7-9d31-6fc8e0d24146/providers/Microsoft.Web/locations/swedencentral/managedApis/teams",
+                                "connectionId": "[parameters('connections_teams_2_externalid')]",
+                                "connectionName": "teams-2",
+                                "connectionProperties": {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
